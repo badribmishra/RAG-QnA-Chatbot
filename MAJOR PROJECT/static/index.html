@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LangGraph AI PDF Agent & Interactive Workspace</title>
+  <meta name="description" content="Intelligent multi-agent PDF analysis, hybrid RAG retrieval, page citation verification, and interactive document workspace.">
+  
+  <!-- Google Fonts: Plus Jakarta Sans, Inter, Outfit & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- PDF.js CDN for PDF Rendering -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <!-- Marked.js for Rich Markdown & Table Formatting -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-theme">
+
+  <!-- AMBIENT GLOW BACKDROPS -->
+  <div class="ambient-backdrop">
+    <div class="ambient-orb ambient-orb-1"></div>
+    <div class="ambient-orb ambient-orb-2"></div>
+    <div class="ambient-orb ambient-orb-3"></div>
+    <div class="ambient-grid"></div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <div class="app-container">
+    
+    <!-- HEADER BAR -->
+    <header class="app-header">
+      <div class="logo-group">
+        <div class="logo-icon">
+          <i class="fa-solid fa-brain-circuit"></i>
+        </div>
+        <div class="logo-text">
+          <h1>DocuGraph <span class="badge-agent">AI AGENT</span></h1>
+          <span class="sub-title">Stateful LangGraph + Hybrid Vector RAG Studio</span>
+        </div>
+      </div>
+
+      <!-- Layout View Mode Switcher -->
+      <div class="view-mode-group" role="group" aria-label="Layout view mode">
+        <button id="viewBtnSplit" class="view-mode-btn active" title="Split Workspace (PDF & Chat)">
+          <i class="fa-solid fa-columns"></i> <span>Split View</span>
+        </button>
+        <button id="viewBtnPdf" class="view-mode-btn" title="Expand PDF Reader">
+          <i class="fa-solid fa-book-open"></i> <span>PDF Reader</span>
+        </button>
+        <button id="viewBtnChat" class="view-mode-btn" title="Focus Chat Workspace">
+          <i class="fa-solid fa-comments"></i> <span>Chat Focus</span>
+        </button>
+      </div>
+
+      <div class="header-actions">
+        <!-- Model Selection Dropdown -->
+        <div class="model-select-wrapper" title="Select AI Reasoning Engine">
+          <i class="fa-solid fa-microchip select-icon"></i>
+          <select id="modelSelect" class="styled-select">
+            <option value="demo" selected>⚡ Smart Demo Agent (Fast & Offline)</option>
+            <option value="gemini">✨ Google Gemini Flash</option>
+            <option value="openai">🤖 OpenAI GPT-4o Mini</option>
+          </select>
+        </div>
+
+        <!-- Action Buttons -->
+        <button id="btnApiKey" class="btn btn-secondary" title="Configure Cloud LLM API Keys">
+          <i class="fa-solid fa-key"></i> <span>API Keys</span>
+        </button>
+
+        <button id="btnGraphView" class="btn btn-secondary" title="Inspect LangGraph State Machine Architecture">
+          <i class="fa-solid fa-diagram-project"></i> <span>Architecture</span>
+        </button>
+
+        <button id="btnLoadSamples" class="btn btn-primary-gradient" title="Instantly load pre-configured demo PDFs">
+          <i class="fa-solid fa-file-circle-plus"></i> <span>Load Sample PDFs</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- MAIN SPLIT WORKSPACE -->
+    <main class="workspace-grid" id="workspaceGrid">
+      
+      <!-- LEFT PANEL: PDF VIEWER & RAG INSPECTOR -->
+      <section class="left-panel glass-card" id="leftPanel">
+        <div class="panel-header">
+          <div class="tab-buttons">
+            <button class="tab-btn active" data-tab="documents-tab" id="tabBtnDocs">
+              <i class="fa-solid fa-folder-open"></i> Documents <span id="docCountBadge" class="counter-pill">0</span>
+            </button>
+            <button class="tab-btn" data-tab="pdf-preview-tab" id="tabBtnPdf">
+              <i class="fa-solid fa-file-pdf"></i> PDF Viewer
+            </button>
+            <button class="tab-btn" data-tab="rag-inspector-tab" id="tabBtnRag">
+              <i class="fa-solid fa-magnifying-glass-chart"></i> RAG Inspector
+            </button>
+          </div>
+          <button id="btnCollapseLeft" class="btn-icon collapse-panel-btn" title="Collapse Left Panel">
+            <i class="fa-solid fa-angles-left"></i>
+          </button>
+        </div>
+
+        <div class="panel-body">
+          
+          <!-- TAB 1: DOCUMENTS LIST & UPLOAD -->
+          <div id="documents-tab" class="tab-content active">
+            <!-- Upload Dropzone -->
+            <div class="upload-dropzone" id="dropzone">
+              <input type="file" id="pdfFileInput" accept=".pdf" hidden>
+              <div class="dropzone-icon">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+              </div>
+              <p class="dropzone-title">Drop PDF file here or <span class="browse-link">Browse Computer</span></p>
+              <p class="dropzone-sub">Automatically extracts text, computes embeddings, and builds index</p>
+            </div>
+
+            <!-- Active Document Filter Banner -->
+            <div id="activeDocFilterBanner" class="active-filter-banner hidden">
+              <div class="filter-banner-text">
+                <i class="fa-solid fa-filter"></i>
+                <span>Scope limited to: <strong id="activeDocFilterName">All PDFs</strong></span>
+              </div>
+              <button id="btnClearFilter" class="btn-clear-pill" title="Reset filter to query all uploaded documents">
+                <i class="fa-solid fa-xmark"></i> Clear Scope
+              </button>
+            </div>
+
+            <!-- Documents Search & Header -->
+            <div class="documents-section-head">
+              <div class="search-box-wrapper">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="docSearchInput" class="doc-search-input" placeholder="Filter documents by name...">
+              </div>
+            </div>
+
+            <!-- Documents List -->
+            <div class="documents-list-container">
+              <div id="documentsList" class="documents-list">
+                <!-- Dynamically Populated -->
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 2: PDF PREVIEWER -->
+          <div id="pdf-preview-tab" class="tab-content">
+            <div class="pdf-viewer-toolbar">
+              <div class="pdf-toolbar-left">
+                <span id="pdfDocTitle" class="pdf-title-text" title="No document loaded">No document loaded</span>
+              </div>
+              
+              <div class="pdf-nav-controls">
+                <button id="btnPdfFirstPage" class="btn-icon" title="First Page"><i class="fa-solid fa-angles-left"></i></button>
+                <button id="btnPdfPrevPage" class="btn-icon" title="Previous Page (Left Arrow)"><i class="fa-solid fa-chevron-left"></i></button>
+                
+                <div class="pdf-page-indicator">
+                  <span>Page</span>
+                  <input type="number" id="inputPdfPageJump" min="1" value="1" class="page-num-input" aria-label="Current Page">
+                  <span>of <span id="pdfTotalPages">1</span></span>
+                </div>
+                
+                <button id="btnPdfNextPage" class="btn-icon" title="Next Page (Right Arrow)"><i class="fa-solid fa-chevron-right"></i></button>
+                <button id="btnPdfLastPage" class="btn-icon" title="Last Page"><i class="fa-solid fa-angles-right"></i></button>
+
+                <div class="divider-v"></div>
+
+                <button id="btnPdfZoomOut" class="btn-icon" title="Zoom Out"><i class="fa-solid fa-minus"></i></button>
+                <button id="btnPdfFitWidth" class="btn-icon-pill" title="Fit to width"><i class="fa-solid fa-arrows-left-right"></i> Fit</button>
+                <span id="pdfZoomLevel" class="zoom-text">100%</span>
+                <button id="btnPdfZoomIn" class="btn-icon" title="Zoom In"><i class="fa-solid fa-plus"></i></button>
+              </div>
+            </div>
+
+            <div class="pdf-canvas-container" id="pdfCanvasContainer">
+              <div class="empty-state-pdf" id="pdfEmptyState">
+                <div class="empty-state-icon"><i class="fa-regular fa-file-pdf"></i></div>
+                <h4>No PDF Selected</h4>
+                <p>Click any document from the <strong>Documents</strong> tab or a <strong>Citation Pill</strong> in the chat to read its pages here.</p>
+              </div>
+              <div id="pdfLoadingSpinner" class="pdf-loader hidden">
+                <i class="fa-solid fa-circle-notch fa-spin"></i>
+                <span>Rendering Page...</span>
+              </div>
+              <canvas id="pdfRenderCanvas" class="hidden"></canvas>
+            </div>
+          </div>
+
+          <!-- TAB 3: RAG INSPECTOR -->
+          <div id="rag-inspector-tab" class="tab-content">
+            <div class="rag-section-head">
+              <div class="section-title">
+                <h3>Hybrid RAG Retrieval Inspector</h3>
+                <span class="sub-text">Transparent vector cosine + BM25 score decomposition</span>
+              </div>
+            </div>
+            <div id="ragInspectorContent" class="rag-chunks-container">
+              <div class="empty-rag">
+                <i class="fa-solid fa-database"></i>
+                <p>Submit a question in the chat to inspect the agent's retrieved context chunks and similarity scores.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- RIGHT PANEL: LANGGRAPH AGENT CHAT -->
+      <section class="right-panel glass-card" id="rightPanel">
+        
+        <!-- Chat Header -->
+        <div class="chat-header">
+          <div class="agent-status-indicator">
+            <span class="status-pulse active"></span>
+            <div class="status-text">
+              <div class="agent-title-row">
+                <h2>Autonomous PDF Reasoning Agent</h2>
+                <span class="agent-type-badge">LangGraph 1.2</span>
+              </div>
+              <span id="agentActiveModeText" class="sub-status">Mode: Smart Demo Agent (Stateful Execution)</span>
+            </div>
+          </div>
+
+          <div class="chat-header-actions">
+            <!-- Active Filter Quick Badge in Chat -->
+            <div id="chatFilterPill" class="chat-filter-pill hidden">
+              <i class="fa-solid fa-file-shield"></i>
+              <span id="chatFilterPillName">Document</span>
+              <button id="btnQuickClearFilter" title="Clear document focus"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <button id="btnClearChat" class="btn btn-secondary-sm" title="Reset conversation history">
+              <i class="fa-solid fa-rotate-left"></i> <span>Clear Chat</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Action Chips -->
+        <div class="quick-actions-bar">
+          <span class="chip-label"><i class="fa-solid fa-wand-magic-sparkles"></i> Quick Tasks:</span>
+          <button class="action-chip" data-prompt="Provide a detailed executive summary of the document, structured by key findings and takeaways.">
+            <i class="fa-solid fa-file-lines"></i> Executive Summary
+          </button>
+          <button class="action-chip" data-prompt="Generate an interactive 5-question multiple choice quiz testing comprehension of this document.">
+            <i class="fa-solid fa-circle-question"></i> Generate Quiz
+          </button>
+          <button class="action-chip" data-prompt="Extract all major numerical metrics, financial figures, SLAs, and performance data into a structured table.">
+            <i class="fa-solid fa-table"></i> Extract Data Table
+          </button>
+          <button class="action-chip" data-prompt="Identify and list all key risks, compliance standards, obligations, and limitations noted in this document.">
+            <i class="fa-solid fa-shield-halved"></i> Risks & Compliance
+          </button>
+          <button class="action-chip" data-prompt="What are the main definitions, technical terminologies, and key entities defined in the text?">
+            <i class="fa-solid fa-book-bookmark"></i> Key Terms & Entities
+          </button>
+        </div>
+
+        <!-- Live LangGraph Step Execution Tracker -->
+        <div id="graphExecutionTracker" class="graph-tracker-bar hidden">
+          <div class="tracker-header">
+            <div class="tracker-node-info">
+              <i class="fa-solid fa-network-wired spinner-icon"></i>
+              <span>LangGraph Execution State:</span>
+              <span id="graphStepBadge" class="step-badge">ROUTER</span>
+            </div>
+            <span class="tracker-timer" id="trackerTimer">Active</span>
+          </div>
+          <div id="graphStepDetails" class="step-details-text">
+            Initializing state graph workflow...
+          </div>
+          <div class="pipeline-progress-bar">
+            <div id="pipelineProgressFill" class="progress-fill"></div>
+          </div>
+        </div>
+
+        <!-- Chat Messages Scroll Container -->
+        <div id="chatMessages" class="chat-messages-container">
+          
+          <!-- Welcome Message -->
+          <div class="message system-welcome">
+            <div class="avatar agent-avatar">
+              <i class="fa-solid fa-brain-circuit"></i>
+            </div>
+            <div class="message-content">
+              <div class="welcome-header">
+                <h3>Welcome to DocuGraph AI Studio 👋</h3>
+                <span class="welcome-tag">Ready for queries</span>
+              </div>
+              <p>Ask deep analytical questions, summarize documents, or run agentic workflows over your uploaded PDFs with exact page-level citations.</p>
+              
+              <div class="starter-prompts-grid">
+                <div class="starter-card" data-prompt="Summarize the core architectural innovations of the LangGraph agent framework.">
+                  <div class="starter-icon"><i class="fa-solid fa-diagram-project"></i></div>
+                  <div class="starter-text">
+                    <strong>LangGraph Architecture</strong>
+                    <span>"Summarize core architectural innovations..."</span>
+                  </div>
+                </div>
+                <div class="starter-card" data-prompt="What was the total revenue growth in Global Tech Q4, and what were the main drivers?">
+                  <div class="starter-icon"><i class="fa-solid fa-chart-line"></i></div>
+                  <div class="starter-text">
+                    <strong>Financial Breakdown</strong>
+                    <span>"What was Q4 revenue growth & drivers?..."</span>
+                  </div>
+                </div>
+                <div class="starter-card" data-prompt="What are the monthly service credit percentages if uptime drops below 95% in the Cloud SLA?">
+                  <div class="starter-icon"><i class="fa-solid fa-file-shield"></i></div>
+                  <div class="starter-text">
+                    <strong>SLA & Penalties</strong>
+                    <span>"Service credits for uptime below 95%?..."</span>
+                  </div>
+                </div>
+                <div class="starter-card" data-prompt="Generate an interactive 5-question quiz to test knowledge on the document.">
+                  <div class="starter-icon"><i class="fa-solid fa-award"></i></div>
+                  <div class="starter-text">
+                    <strong>Interactive Quiz</strong>
+                    <span>"Generate 5-question quiz..."</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="features-pill-grid">
+                <span><i class="fa-solid fa-check"></i> Hybrid Vector Search (Cosine + BM25)</span>
+                <span><i class="fa-solid fa-check"></i> Self-RAG Relevancy Evaluation</span>
+                <span><i class="fa-solid fa-check"></i> 1-Click Page Jump Citations</span>
+                <span><i class="fa-solid fa-check"></i> Interactive Quiz & Table Tool Engine</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Chat Input Form -->
+        <div class="chat-input-container">
+          <form id="chatForm" class="chat-input-form">
+            <div class="input-prefix-icon">
+              <i class="fa-solid fa-sparkles"></i>
+            </div>
+            <textarea 
+              id="userInput" 
+              placeholder="Ask anything about your documents... (Press Enter to send, Shift+Enter for newline)" 
+              rows="1"
+              autocomplete="off"
+            ></textarea>
+            <div class="input-actions-group">
+              <span class="keyboard-hint"><kbd>↵ Enter</kbd> to send</span>
+              <button type="submit" id="btnSend" class="btn-send" title="Send query to LangGraph Agent">
+                <i class="fa-solid fa-paper-plane"></i>
+              </button>
+            </div>
+          </form>
+        </div>
+
+      </section>
+    </main>
+
+  </div>
+
+  <!-- API KEYS MODAL -->
+  <div id="modalApiKey" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal-card glass-modal">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-key"></i> LLM Provider API Configuration</h3>
+        <button class="btn-icon modal-close" data-modal="modalApiKey" title="Close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          Keys are stored locally in your browser's <code>localStorage</code> and sent securely only to local endpoints.
+          Leave blank to use the built-in <strong>Smart Demo Agent</strong>.
+        </p>
+        
+        <div class="form-group">
+          <label for="inputGeminiKey"><i class="fa-solid fa-wand-magic-sparkles"></i> Google Gemini API Key</label>
+          <div class="input-with-toggle">
+            <input type="password" id="inputGeminiKey" placeholder="AIzaSy..." class="styled-input">
+            <button type="button" class="btn-toggle-pwd" data-target="inputGeminiKey" title="Toggle visibility"><i class="fa-solid fa-eye"></i></button>
+          </div>
+          <span class="help-text">Used when "Google Gemini Flash" is selected.</span>
+        </div>
+
+        <div class="form-group">
+          <label for="inputOpenAIKey"><i class="fa-solid fa-robot"></i> OpenAI API Key</label>
+          <div class="input-with-toggle">
+            <input type="password" id="inputOpenAIKey" placeholder="sk-proj-..." class="styled-input">
+            <button type="button" class="btn-toggle-pwd" data-target="inputOpenAIKey" title="Toggle visibility"><i class="fa-solid fa-eye"></i></button>
+          </div>
+          <span class="help-text">Used when "OpenAI GPT-4o Mini" is selected.</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary modal-close" data-modal="modalApiKey">Cancel</button>
+        <button id="btnSaveApiKeys" class="btn btn-primary-gradient"><i class="fa-solid fa-floppy-disk"></i> Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LANGGRAPH ARCHITECTURE MODAL -->
+  <div id="modalGraphView" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal-card glass-modal modal-lg">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-diagram-project"></i> LangGraph Stateful Architecture Topology</h3>
+        <button class="btn-icon modal-close" data-modal="modalGraphView" title="Close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          Visual depiction of the compiled multi-agent state graph, showing routing, retrieval, self-RAG evaluation, and tool delegation.
+        </p>
+        
+        <div id="graphDiagramContainer" class="graph-diagram-wrapper">
+          <!-- Rendered via JS -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary modal-close" data-modal="modalGraphView">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main JavaScript App -->
+  <script src="app.js"></script>
+</body>
+</html>
